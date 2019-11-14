@@ -26,6 +26,8 @@ func TestInitialElection(t *testing.T) {
 
 	fmt.Printf("Test: initial election ...\n")
 
+	cfg.PrintState()
+
 	// is a leader elected?
 	cfg.checkOneLeader()
 
@@ -47,16 +49,22 @@ func TestReElection(t *testing.T) {
 
 	fmt.Printf("Test: election after network failure ...\n")
 
+	cfg.PrintState()
+
 	leader1 := cfg.checkOneLeader()
 
 	// if the leader disconnects, a new one should be elected.
 	cfg.disconnect(leader1)
+	fmt.Println(leader1, "DISCNECTED")
 	cfg.checkOneLeader()
 
 	// if the old leader rejoins, that shouldn't
 	// disturb the old leader.
 	cfg.connect(leader1)
 	leader2 := cfg.checkOneLeader()
+	for i := 0; i < 3; i++ {
+		cfg.rafts[i].PrintState()
+	}
 
 	// if there's no quorum, no leader should
 	// be elected.
@@ -82,6 +90,7 @@ func TestBasicAgree(t *testing.T) {
 	defer cfg.cleanup()
 
 	fmt.Printf("Test: basic agreement ...\n")
+	cfg.PrintState()
 
 	iters := 3
 	for index := 1; index < iters+1; index++ {
@@ -289,6 +298,8 @@ func TestRejoin(t *testing.T) {
 	defer cfg.cleanup()
 
 	fmt.Printf("Test: rejoin of partitioned leader ...\n")
+
+	cfg.PrintState()
 
 	cfg.one(101, servers)
 
@@ -697,6 +708,8 @@ func TestUnreliableAgree(t *testing.T) {
 	defer cfg.cleanup()
 
 	fmt.Printf("Test: unreliable agreement ...\n")
+
+	//cfg.PrintState()
 
 	var wg sync.WaitGroup
 

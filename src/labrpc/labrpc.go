@@ -78,6 +78,8 @@ type ClientEnd struct {
 // send an RPC, wait for the reply.
 // the return value indicates success; false means the
 // server couldn't be contacted.
+
+// call函数是msg的接收者执行 接收者1.不调用server(msg丢失) 2.调用server(msg交付)
 func (e *ClientEnd) Call(svcMeth string, args interface{}, reply interface{}) bool {
 	req := reqMsg{}
 	req.endname = e.endname

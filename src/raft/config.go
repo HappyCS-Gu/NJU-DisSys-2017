@@ -26,6 +26,11 @@ func randstring(n int) string {
 	return s[0:n]
 }
 
+// server与raft之间是一一对应的关系
+// endnames[i]是raft[i]记录的其他raft peer的名称 e.g. endnames[i][j]是raft[i]记录的raft[j]的名字
+// 通过修改名称-server的映射 net.connections可以通过endnames[i][j]访问raft[j]的server
+// 一个名称 e.g. endnames[i][j] 标记了server[i]与server[j]之间的信道 ,因此net.enabled记录的是所有信道是否enable
+
 type config struct {
 	mu        sync.Mutex
 	t         *testing.T
@@ -38,6 +43,13 @@ type config struct {
 	saved     []*Persister
 	endnames  [][]string    // the port file names each sends to
 	logs      []map[int]int // copy of each server's committed entries
+}
+
+func (cfg *config) PrintState() {
+	for _, x := range cfg.rafts {
+		x.PrintState()
+	}
+	fmt.Println()
 }
 
 func make_config(t *testing.T, n int, unreliable bool) *config {
@@ -140,6 +152,8 @@ func (cfg *config) start1(i int) {
 
 	cfg.mu.Unlock()
 
+	// 这个线程的作用?
+
 	// listen to messages from Raft indicating newly committed messages.
 	applyCh := make(chan ApplyMsg)
 	go func() {
@@ -199,7 +213,7 @@ func (cfg *config) cleanup() {
 
 // attach server i to the net.
 func (cfg *config) connect(i int) {
-	// fmt.Printf("connect(%d)\n", i)
+	fmt.Printf("connect(%d)\n", i)
 
 	cfg.connected[i] = true
 
@@ -222,8 +236,8 @@ func (cfg *config) connect(i int) {
 
 // detach server i from the net.
 func (cfg *config) disconnect(i int) {
-	// fmt.Printf("disconnect(%d)\n", i)
 
+	fmt.Printf("disconnect(%d)\n", i)
 	cfg.connected[i] = false
 
 	// outgoing ClientEnds
@@ -258,6 +272,7 @@ func (cfg *config) setlongreordering(longrel bool) {
 // check that there's exactly one leader.
 // try a few times in case re-elections are needed.
 func (cfg *config) checkOneLeader() int {
+	fmt.Println("CheckOneLeader starts!")
 	for iters := 0; iters < 10; iters++ {
 		time.Sleep(500 * time.Millisecond)
 		leaders := make(map[int][]int)
@@ -280,7 +295,14 @@ func (cfg *config) checkOneLeader() int {
 		}
 
 		if len(leaders) != 0 {
+
+			for i := 0; i < 3; i++ {
+				cfg.rafts[i].PrintState()
+			}
+			fmt.Println()
+
 			return leaders[lastTermWithLeader][0]
+
 		}
 	}
 	cfg.t.Fatalf("expected one leader, got none")
