@@ -105,7 +105,7 @@ type Raft struct {
 func (rf *Raft) PrintState() {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
-	fmt.Println("id:", rf.me, " ", "term:", rf.currentTerm, " ", "state:", rf.state, " timeout:", rf.electionTimeOut)
+	//fmt.Println("id:", rf.me, " ", "term:", rf.currentTerm, " ", "state:", rf.state, " timeout:", rf.electionTimeOut)
 }
 func test_term(s string) {
 	fmt.Println(s, "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
@@ -156,7 +156,7 @@ func (rf *Raft) readPersist(data []byte) {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
 
-	fmt.Println(rf.me, " reads persisted state!")
+	//fmt.Println(rf.me, " reads persisted state!")
 
 	r := bytes.NewBuffer(data)
 	d := gob.NewDecoder(r)
@@ -199,6 +199,8 @@ type AppendEntriesReply struct {
 	Success bool
 	Id      int // server id
 	Index   int // the latest index that matches
+
+	TermMatch bool
 }
 
 //RAFT对象与其他raft对象交互时，应该使用interface{}作为标示，内部状态使用int
@@ -209,8 +211,8 @@ func (rf *Raft) RequestVote(args RequestVoteArgs, reply *RequestVoteReply) {
 
 	rf.mu.Lock()
 
-	fmt.Println(rf.me, "recieved a requestvote!", "myterm:", rf.currentTerm, " term:", args.Term, " candidate:", args.EndIndex,
-		" lastindex:", args.LastlogIndex, " lastterm:", args.LastlogTerm)
+	//fmt.Println(rf.me, "recieved a requestvote!", "myterm:", rf.currentTerm, " term:", args.Term, " candidate:", args.EndIndex,
+	//	" lastindex:", args.LastlogIndex, " lastterm:", args.LastlogTerm)
 
 	reply.VoteGranted = true
 	if args.Term < rf.currentTerm {
@@ -249,7 +251,7 @@ func (rf *Raft) RequestVote(args RequestVoteArgs, reply *RequestVoteReply) {
 	// 同意投票时，需要重置electionTimeOut
 
 	if reply.VoteGranted {
-		fmt.Println(rf.me, " grands ", args.EndIndex, "'s requestvote,term:", args.Term)
+		//	fmt.Println(rf.me, " grands ", args.EndIndex, "'s requestvote,term:", args.Term)
 		rf.resetTimer()
 	}
 	//返回前写磁盘
@@ -283,8 +285,12 @@ func (rf *Raft) AppendEntries(args AppendEntriesArgs, reply *AppendEntriesReply)
 	}
 	/*检查prevLogIndex 与 prevLogTerm */
 	b := false
+	termmatch := false
 	index := 0
 	for i, x := range rf.log {
+		if x.Term == args.PrevLogTerm {
+			termmatch = true
+		}
 		if x.Term == args.PrevLogTerm && i == args.PrevLogIndex {
 			b = true
 			index = i
@@ -297,8 +303,10 @@ func (rf *Raft) AppendEntries(args AppendEntriesArgs, reply *AppendEntriesReply)
 	}
 	if !b {
 		reply.Success = false
+		reply.TermMatch = termmatch
 	} else {
 		reply.Success = true
+		reply.TermMatch = true
 	}
 	if b && args.Entries != nil {
 
@@ -340,12 +348,13 @@ func (rf *Raft) AppendEntries(args AppendEntriesArgs, reply *AppendEntriesReply)
 	}
 	rf.mu.Unlock()
 
-	fmt.Print(rf.me, " finished append,term:", rf.currentTerm, " commitIndex: ", rf.commitIndex, " lastApplied: ", rf.lastApplied)
-	for i := 0; i < len(rf.log); i++ {
-		fmt.Print(rf.log[i], " ")
-	}
-	fmt.Println()
-
+	//fmt.Print(rf.me, " finished append,term:", rf.currentTerm, " commitIndex: ", rf.commitIndex, " lastApplied: ", rf.lastApplied)
+	/*
+		for i := 0; i < len(rf.log); i++ {
+			fmt.Print(rf.log[i], " ")
+		}
+		fmt.Println()
+	*/
 	rf.resetTimer()
 	// 返回前写磁盘
 	rf.persist()
@@ -401,7 +410,7 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 		return index, term, isLeader
 	}
 	//append the new command to leader's log
-	fmt.Println(rf.me, " add a new log entry term: ", rf.currentTerm, " index: ", len(rf.log), " command: ", command)
+	//fmt.Println(rf.me, " add a new log entry term: ", rf.currentTerm, " index: ", len(rf.log), " command: ", command)
 	entry := LogEntry{}
 	entry.Command = command
 	entry.Index = len(rf.log)
@@ -499,11 +508,13 @@ func (rf *Raft) setCommitIndex() {
 		}
 		rf.lastApplied = rf.commitIndex
 	}
-	fmt.Print(rf.me, " LEADER STATUS:", rf.currentTerm, " commitIndex: ", rf.commitIndex, " lastApplied: ", rf.lastApplied)
-	for i := 0; i < len(rf.log); i++ {
-		fmt.Print(rf.log[i], " ")
-	}
-	fmt.Println()
+	//fmt.Print(rf.me, " LEADER STATUS:", rf.currentTerm, " commitIndex: ", rf.commitIndex, " lastApplied: ", rf.lastApplied)
+	/*
+		for i := 0; i < len(rf.log); i++ {
+			fmt.Print(rf.log[i], " ")
+		}
+		fmt.Println()
+	*/
 }
 
 /*the raft server behavior*/
@@ -512,7 +523,7 @@ func (rf *Raft) Waiting() {
 	// leader 50ms 发送一次heartbeat信号
 	heartbeat := time.NewTimer(time.Duration(TimeHeartBeat) * time.Millisecond)
 	rf.resetTimer()
-	fmt.Println(rf.me, " am coming!state: ", rf.state, " term: ", rf.currentTerm)
+	//fmt.Println(rf.me, " am coming!state: ", rf.state, " term: ", rf.currentTerm)
 	for {
 		select {
 		case <-rf.Timer.C:
@@ -522,15 +533,15 @@ func (rf *Raft) Waiting() {
 				rf.resetTimer()
 				break
 			}
-			fmt.Println(rf.me, " want to enter!!!")
+			//fmt.Println(rf.me, " want to enter!!!")
 			rf.mu.Lock()
-			fmt.Println("TT:", rf.currentTerm)
+			//fmt.Println("TT:", rf.currentTerm)
 
 			rf.state = StCandidate
 			rf.currentTerm++
-			fmt.Println("TTB:", rf.currentTerm)
+			//fmt.Println("TTB:", rf.currentTerm)
 			rf.votedFor = rf.me
-			fmt.Println(rf.me, " starts sending requestvote msg term:", rf.currentTerm)
+			//fmt.Println(rf.me, " starts sending requestvote msg term:", rf.currentTerm)
 			ct, li := rf.currentTerm, len(rf.log)-1
 			lt := -1
 			if li != -1 {
@@ -540,7 +551,7 @@ func (rf *Raft) Waiting() {
 			rf.mu.Unlock()
 			rf.resetTimer()
 
-			start := time.Now() // 获取当前时间
+			//start := time.Now() // 获取当前时间
 			//采用buffered channel
 			c := make(chan *RequestVoteReply, len(rf.peers))
 
@@ -560,8 +571,8 @@ func (rf *Raft) Waiting() {
 					args.LastlogIndex = li
 					args.LastlogTerm = lt
 					reply := &RequestVoteReply{}
-					fmt.Println("Vote Msg:", "id:", args.EndIndex, "term: ", args.Term, " Lastlogindex: ", args.LastlogIndex,
-						" LastLogTerm:", args.LastlogTerm)
+					//fmt.Println("Vote Msg:", "id:", args.EndIndex, "term: ", args.Term, " Lastlogindex: ", args.LastlogIndex,
+					//	" LastLogTerm:", args.LastlogTerm)
 
 					//若无法到达则重复发送，最多持续electiontimeout时间
 					timeout := time.After(time.Millisecond * time.Duration(rf.electionTimeOut-TimeHeartBeat))
@@ -592,8 +603,8 @@ func (rf *Raft) Waiting() {
 			tm.Unlock()
 			close(c)
 
-			cost := time.Since(start)
-			fmt.Printf("election cost=[%s]\n", cost)
+			//cost := time.Since(start)
+			//fmt.Printf("election cost=[%s]\n", cost)
 
 			rf.mu.Lock()
 			for rep := range c {
@@ -632,8 +643,8 @@ func (rf *Raft) Waiting() {
 			if rf.state != StLeader {
 				break
 			}
-			fmt.Println(rf.me, " starts sending heartbeat term: ", rf.currentTerm)
-			start := time.Now() // 获取当前时间
+			//fmt.Println(rf.me, " starts sending heartbeat term: ", rf.currentTerm)
+			//start := time.Now() // 获取当前时间
 
 			// buffered channel
 			c := make(chan *AppendEntriesReply, len(rf.peers))
@@ -700,8 +711,8 @@ func (rf *Raft) Waiting() {
 				*/
 				go func(ch chan *AppendEntriesReply, s int) {
 					arg := rf.makeAppendEntriesArgs(s)
-					fmt.Println("Heart Msg:", "id:", arg.LeaderId, " term:", arg.Term, " lastindex:", arg.PrevLogIndex, " lastterm:",
-						arg.PrevLogTerm)
+					//fmt.Println("Heart Msg:", "id:", arg.LeaderId, " term:", arg.Term, " lastindex:", arg.PrevLogIndex, " lastterm:",
+					//	arg.PrevLogTerm)
 					reply := &AppendEntriesReply{}
 					if rf.sendAppendEntries(s, arg, reply) {
 						tm.Lock()
@@ -719,8 +730,8 @@ func (rf *Raft) Waiting() {
 			tm.Unlock()
 			close(c)
 
-			cost := time.Since(start)
-			fmt.Printf("heartbeat cost=[%s]\n", cost)
+			//cost := time.Since(start)
+			//fmt.Printf("heartbeat cost=[%s]\n", cost)
 
 			rf.mu.Lock()
 			for rep := range c {
@@ -734,7 +745,31 @@ func (rf *Raft) Waiting() {
 						rf.nextIndex[rep.Id] = rep.Index + 1
 						rf.matchIndex[rep.Id] = rep.Index
 					} else {
-						rf.nextIndex[rep.Id]--
+						//optimization
+						//rf.nextIndex[rep.Id]--
+						ne := rf.nextIndex[rep.Id] - 1
+						i := 0
+						if rep.TermMatch {
+							for i = 0; i < ne; i++ {
+								if rf.log[i].Term == rf.log[ne].Term {
+									break
+								}
+							}
+							//fmt.Println("DECREMENT:",rf.nextIndex[rep.Id]-i)
+							rf.nextIndex[rep.Id] = i
+						} else {
+							for i = 0; i < ne; i++ {
+								if rf.log[i].Term == rf.log[ne].Term {
+									break
+								}
+							}
+							if i == 0 {
+								i++
+							}
+							fmt.Println("DECREMENT:", rf.nextIndex[rep.Id]-i+1)
+							rf.nextIndex[rep.Id] = i - 1
+
+						}
 					}
 				}
 			}
@@ -743,7 +778,7 @@ func (rf *Raft) Waiting() {
 			}
 			rf.mu.Unlock()
 		case <-rf.alive:
-			fmt.Println(rf.me, "i am gone")
+			//fmt.Println(rf.me, "i am gone")
 			return
 		default:
 			//用布尔变量判断线程结束会出问题？？？？？？？
@@ -788,10 +823,10 @@ func Make(peers []*labrpc.ClientEnd, me int,
 
 	// initialize from state persisted before a crash
 	if persister.ReadRaftState() != nil {
-		fmt.Println("read persisit state")
+		//fmt.Println("read persisit state")
 		rf.readPersist(persister.ReadRaftState())
 	} else {
-		fmt.Println("persister: nil")
+		//fmt.Println("persister: nil")
 		rf.currentTerm = 0
 		rf.votedFor = -1
 		//electiontimeout : 300-600ms
